@@ -129,8 +129,8 @@ export const forgotPassword = async (req, res) => {
       .update(resetToken)
       .digest('hex');
     
-    // Set token expiry (1 hour from now)
-    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
+    // Set token expiry (24 hour from now)
+    const resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
     
     // Update the user record with the reset token
     if (userType === 'admin') {
@@ -170,7 +170,7 @@ export const forgotPassword = async (req, res) => {
         <h1>Password Reset Request</h1>
         <p>You requested a password reset. Please click the link below to reset your password:</p>
         <a href="${resetUrl}" style="display: inline-block; background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a>
-        <p>This link will expire in 1 hour.</p>
+        <p>This link will expire in 24 hour.</p>
         <p>If you didn't request this, please ignore this email.</p>
       `
     });

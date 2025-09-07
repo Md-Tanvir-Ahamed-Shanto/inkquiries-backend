@@ -30,9 +30,9 @@ router.route('/:id')
 
   
 // Account management routes
-router.post('/:id/change-email', changeEmail);
-router.post('/:id/change-password', changePassword);
-router.post('/:id/disable', disableClient);
+router.put('/:id/change-email', changeEmail);
+router.put('/:id/change-password', changePassword);
+router.put('/:id/disable', disableClient);
 
 // Profile photo routes
 router.post(
