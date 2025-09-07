@@ -1,0 +1,412 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//
+// ADMIN TABLE
+//
+model Admin {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  password     String
+  name         String?
+  profilePhoto String?
+  isSuper      Boolean @default(false)
+  role         String  @default("admin")
+  isActive     Boolean @default(true)
+
+  logs AdminLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admins")
+}
+
+//
+// CLIENT TABLE
+//
+model Client {
+  id           String  @id @default(cuid())
+  username     String  @unique
+  email        String  @unique
+  password     String
+  role         String  @default("client")
+  name         String?
+  profilePhoto String?
+  location     String?
+  socialLinks  Json? // for custom links
+  socialLogin  Json? // optional social login data (Google/Facebook etc.)
+
+  reviews           Review[]
+  portfolioComments PortfolioComment[]
+  reviewComments    ReviewComment[]
+  reviewLikes       ReviewLike[]
+  portfolioLikes    PortfolioLike[]
+  lastLogin         DateTime?
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@map("clients")
+}
+
+//
+// ARTIST TABLE
+//
+model Artist {
+  id              String    @id @default(cuid())
+  email           String?    @unique
+  password        String?
+  name            String?
+  username        String    @unique
+  role            String    @default("artist")
+  profilePhoto    String?
+  location        String?
+  socialLinks     Json? // custom external links
+  socialLogin     Json? // optional social login
+  socialVerified  Boolean   @default(false) // verified through socials
+  lastLogin       DateTime?
+  isActive        Boolean   @default(true)
+  specialties     String[]
+  socialHandle    String?   @unique
+  isVerified      Boolean   @default(false)
+  createdByClient Boolean   @default(false)
+  isClaimed       Boolean   @default(false)
+  about           String? // About artist (bio)
+  personalVibe    Json? // Personal vibe (e.g., "funny", "serious")
+
+  reviews         Review[]
+  portfolioImages PortfolioImage[]
+  gallaryImages   GallaryImage[]
+  promotions      Promotion[]
+  reportedReviews ReviewReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("artists")
+}
+
+//
+// REVIEW TABLE
+//
+model Review {
+  id       String  @id @default(cuid())
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  artistId String
+  artist   Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  tattooDate DateTime
+
+  // Ratings
+  bedsideManner     Int       @db.SmallInt
+  accommodation     Int       @db.SmallInt
+  price             Int       @db.SmallInt
+  heavyHandedness   Int       @db.SmallInt
+  artworkQuality    Int       @db.SmallInt
+  tattooQuality     Int       @db.SmallInt
+  overallExperience Int       @db.SmallInt
+  tattooStyle       String?
+  location          String?
+  artDate           DateTime?
+  content           String?
+
+  // Instead of separate table → array of URLs
+  photoUrls String[] @db.Text
+
+  likesCount    Int @default(0)
+  commentsCount Int @default(0)
+  sharesCount   Int @default(0)
+
+  comments   ReviewComment[]
+  isReported Boolean         @default(false)
+  reports    ReviewReport[]
+  likes      ReviewLike[]
+  status     String          @default("active")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reviews")
+}
+
+//
+// REVIEW COMMENT
+//
+model ReviewComment {
+  id       String  @id @default(cuid())
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  reviewId String
+  review   Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//
+// REVIEW LIKE
+//
+model ReviewLike {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  reviewId String
+  review   Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([clientId, reviewId])
+  @@index([clientId]) // Optimize queries filtering by clientId
+  @@index([reviewId]) // Optimize queries filtering by reviewId
+  @@map("review_likes")
+}
+
+//
+// PORTFOLIO IMAGES
+//
+model PortfolioImage {
+  id       String @id @default(cuid())
+  artistId String
+  artist   Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  imageUrls   String[] @db.Text // multiple images in one portfolio entry
+  title       String?
+  description String?
+  style       String?
+
+  isPublic      Boolean  @default(true)
+  uploadedAt    DateTime @default(now())
+  likesCount    Int      @default(0)
+  commentsCount Int      @default(0)
+
+  comments PortfolioComment[]
+  likes    PortfolioLike[]
+}
+
+model GallaryImage {
+  id       String @id @default(cuid())
+  artistId String
+  artist   Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  imageUrls String[] @db.Text
+
+  isPublic   Boolean  @default(true)
+  uploadedAt DateTime @default(now())
+  likesCount Int      @default(0)
+}
+
+//
+// PORTFOLIO COMMENT
+//
+model PortfolioComment {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  portfolioImageId String
+  portfolioImage   PortfolioImage @relation(fields: [portfolioImageId], references: [id], onDelete: Cascade)
+
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//
+// PORTFOLIO LIKE
+//
+model PortfolioLike {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  portfolioImageId String
+  portfolioImage   PortfolioImage @relation(fields: [portfolioImageId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([clientId, portfolioImageId])
+  @@index([clientId]) // Optimize queries filtering by clientId
+  @@index([portfolioImageId]) // Optimize queries filtering by portfolioImageId
+  @@map("portfolio_likes")
+}
+
+//
+// REVIEW REPORT
+//
+model ReviewReport {
+  id       String @id @default(cuid())
+  reviewId String
+  review   Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  artistId String
+  artist   Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  type     String
+  reason   String
+  status   String @default("PENDING")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("review_reports")
+}
+
+//
+// PROMOTIONS (Artist Feature)
+//
+model Promotion {
+  id       String @id @default(cuid())
+  artistId String
+  artist   Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  price       Float?
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("promotions")
+}
+
+//
+// ADMIN LOGS
+//
+model AdminLog {
+  id      String @id @default(cuid())
+  adminId String
+  admin   Admin  @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  action     String
+  targetType String
+  targetId   String
+  details    Json?
+
+  createdAt DateTime @default(now())
+
+  @@map("admin_logs")
+}
+
+//
+// NOTIFICATIONS
+//
+model Notification {
+  id         String  @id @default(cuid())
+  userId     String // Generic user ID (can be client, artist, or admin)
+  userType   String // "client", "artist", or "admin"
+  title      String
+  message    String
+  type       String? // e.g., "review", "comment", "system", etc.
+  read       Boolean @default(false)
+  actionLink String?
+  metadata   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id                     String  @id @default(cuid())
+  userId                 String
+  userType               String // "client", "artist", or "admin"
+  email                  Boolean @default(true)
+  inApp                  Boolean @default(true)
+  push                   Boolean @default(false)
+  sms                    Boolean @default(false)
+  reviewNotifications    Boolean @default(true)
+  commentNotifications   Boolean @default(true)
+  messageNotifications   Boolean @default(true)
+  systemNotifications    Boolean @default(true)
+  promotionNotifications Boolean @default(true)
+  healedPhotoReminders   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, userType])
+  @@map("notification_preferences")
+}
+
+model socialLink {
+  id        String  @id @default(cuid())
+  logo      String?
+  facebook  String?
+  twitter   String?
+  instagram String?
+  linkedin  String?
+  youtube   String?
+
+  @@map("social_links")
+}
+
+//
+// SUBSCRIPTION PLAN
+//
+model SubscriptionPlan {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  duration    Int // Duration in days
+  features    Json? // Array of features included in the plan
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("subscription_plans")
+}
+
+//
+// ARTIST SUBSCRIPTION
+//
+model ArtistSubscription {
+  id            String   @id @default(cuid())
+  artistId      String
+  planId        String
+  startDate     DateTime @default(now())
+  endDate       DateTime
+  status        String   @default("active") // active, expired, cancelled
+  paymentMethod String?
+  transactionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("artist_subscriptions")
+}
+
+//
+// SOCIAL ACCOUNT
+//
+model SocialAccount {
+  id                String    @id @default(cuid())
+  provider          String // 'facebook', 'instagram', etc.
+  providerAccountId String // ID from the provider
+  clientId          String? // Link to Client if applicable
+  artistId          String? // Link to Artist if applicable
+  accessToken       String?   @db.Text
+  refreshToken      String?   @db.Text
+  tokenExpiry       DateTime?
+  profileData       Json? // Store additional profile data
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@map("social_accounts")
+}
