@@ -1,11 +1,16 @@
 import { Router } from 'express';
 import passport from 'passport';
-import { login, socialLoginCallback } from '../controllers/authController.js';
+import { login, socialLoginCallback, forgotPassword, resetPassword, verifyResetToken } from '../controllers/authController.js';
 
 const router = Router();
 
 // Single login endpoint, no role needed in the URL
 router.post('/login', login);
+
+// Password reset routes
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
+router.get('/verify-reset-token/:token/:userType', verifyResetToken);
 
 // Facebook OAuth routes
 router.get('/facebook', (req, res, next) => {

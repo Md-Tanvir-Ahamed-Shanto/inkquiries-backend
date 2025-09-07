@@ -11,14 +11,16 @@ datasource db {
 // ADMIN TABLE
 //
 model Admin {
-  id           String  @id @default(cuid())
-  email        String  @unique
-  password     String
-  name         String?
-  profilePhoto String?
-  isSuper      Boolean @default(false)
-  role         String  @default("admin")
-  isActive     Boolean @default(true)
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  password           String
+  name               String?
+  profilePhoto       String?
+  isSuper            Boolean   @default(false)
+  role               String    @default("admin")
+  isActive           Boolean   @default(true)
+  resetPasswordToken String?   // token for password reset
+  resetTokenExpiry   DateTime? // expiry time for reset token
 
   logs AdminLog[]
 
@@ -32,16 +34,18 @@ model Admin {
 // CLIENT TABLE
 //
 model Client {
-  id           String  @id @default(cuid())
-  username     String  @unique
-  email        String  @unique
-  password     String
-  role         String  @default("client")
-  name         String?
-  profilePhoto String?
-  location     String?
-  socialLinks  Json? // for custom links
-  socialLogin  Json? // optional social login data (Google/Facebook etc.)
+  id                 String    @id @default(cuid())
+  username           String    @unique
+  email              String    @unique
+  password           String
+  role               String    @default("client")
+  name               String?
+  profilePhoto       String?
+  location           String?
+  socialLinks        Json?     // for custom links
+  socialLogin        Json?     // optional social login data (Google/Facebook etc.)
+  resetPasswordToken String?   // token for password reset
+  resetTokenExpiry   DateTime? // expiry time for reset token
 
   reviews           Review[]
   portfolioComments PortfolioComment[]
@@ -60,26 +64,28 @@ model Client {
 // ARTIST TABLE
 //
 model Artist {
-  id              String    @id @default(cuid())
-  email           String?    @unique
-  password        String?
-  name            String?
-  username        String    @unique
-  role            String    @default("artist")
-  profilePhoto    String?
-  location        String?
-  socialLinks     Json? // custom external links
-  socialLogin     Json? // optional social login
-  socialVerified  Boolean   @default(false) // verified through socials
-  lastLogin       DateTime?
-  isActive        Boolean   @default(true)
-  specialties     String[]
-  socialHandle    String?   @unique
-  isVerified      Boolean   @default(false)
-  createdByClient Boolean   @default(false)
-  isClaimed       Boolean   @default(false)
-  about           String? // About artist (bio)
-  personalVibe    Json? // Personal vibe (e.g., "funny", "serious")
+  id                 String    @id @default(cuid())
+  email              String?   @unique
+  password           String?
+  name               String?
+  username           String    @unique
+  role               String    @default("artist")
+  profilePhoto       String?
+  location           String?
+  socialLinks        Json?     // custom external links
+  socialLogin        Json?     // optional social login
+  socialVerified     Boolean   @default(false) // verified through socials
+  lastLogin          DateTime?
+  isActive           Boolean   @default(true)
+  specialties        String[]
+  socialHandle       String?   @unique
+  isVerified         Boolean   @default(false)
+  createdByClient    Boolean   @default(false)
+  isClaimed          Boolean   @default(false)
+  about              String?   // About artist (bio)
+  personalVibe       Json?     // Personal vibe (e.g., "funny", "serious")
+  resetPasswordToken String?   // token for password reset
+  resetTokenExpiry   DateTime? // expiry time for reset token
 
   reviews         Review[]
   portfolioImages PortfolioImage[]

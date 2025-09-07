@@ -1,7 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { sendNotification } from '../services/notificationService.js';
+import { sendEmail } from '../services/emailService.js';
 import dotenv from 'dotenv';
 
 const prisma = new PrismaClient();
@@ -75,6 +77,312 @@ export const socialLoginCallback = async (req, res) => {
   } catch (error) {
     console.error('Error during social login callback:', error);
     return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=Server error`);
+  }
+};
+
+/**
+ * Request a password reset email
+ * @param {object} req - The request object
+ * @param {object} res - The response object
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Please provide an email address.' });
+    }
+    
+    // Check which user type the email belongs to
+    let user;
+    let userType;
+    
+    // Check Admin table first
+    user = await prisma.admin.findUnique({ where: { email } });
+    if (user) {
+      userType = 'admin';
+    } else {
+      // If not Admin, check Client table
+      user = await prisma.client.findUnique({ where: { email } });
+      if (user) {
+        userType = 'client';
+      } else {
+        // If not Client, check Artist table
+        user = await prisma.artist.findUnique({ where: { email } });
+        if (user) {
+          userType = 'artist';
+        }
+      }
+    }
+    
+    if (!user) {
+      // Don't reveal that the email doesn't exist for security reasons
+      return res.status(200).json({ message: 'If your email is registered, you will receive a password reset link.' });
+    }
+    
+    // Generate a random token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    
+    // Hash the token for security
+    const resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+    
+    // Set token expiry (1 hour from now)
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
+    
+    // Update the user record with the reset token
+    if (userType === 'admin') {
+      await prisma.admin.update({
+        where: { id: user.id },
+        data: {
+          resetPasswordToken,
+          resetTokenExpiry
+        }
+      });
+    } else if (userType === 'client') {
+      await prisma.client.update({
+        where: { id: user.id },
+        data: {
+          resetPasswordToken,
+          resetTokenExpiry
+        }
+      });
+    } else if (userType === 'artist') {
+      await prisma.artist.update({
+        where: { id: user.id },
+        data: {
+          resetPasswordToken,
+          resetTokenExpiry
+        }
+      });
+    }
+    
+    // Create reset URL
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password/${resetToken}?type=${userType}`;
+    
+    // Send email with reset link
+    await sendEmail({
+      to: email,
+      subject: 'Password Reset Request',
+      html: `
+        <h1>Password Reset Request</h1>
+        <p>You requested a password reset. Please click the link below to reset your password:</p>
+        <a href="${resetUrl}" style="display: inline-block; background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a>
+        <p>This link will expire in 1 hour.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+      `
+    });
+    
+    // Send notification
+    try {
+      await sendNotification({
+        userId: user.id,
+        userType,
+        title: 'Password Reset Requested',
+        message: 'You have requested a password reset. Check your email for instructions.',
+        type: 'system'
+      });
+    } catch (notificationError) {
+      console.error('Error sending password reset notification:', notificationError);
+      // Continue even if notification fails
+    }
+    
+    res.status(200).json({ message: 'If your email is registered, you will receive a password reset link.' });
+  } catch (error) {
+    console.error('Error in forgotPassword:', error);
+    res.status(500).json({ error: 'An error occurred while processing your request.' });
+  }
+};
+
+/**
+ * Reset password with token
+ * @param {object} req - The request object
+ * @param {object} res - The response object
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, password, userType } = req.body;
+    
+    if (!token || !password || !userType) {
+      return res.status(400).json({ error: 'Missing required fields.' });
+    }
+    
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+    }
+    
+    // Hash the token from the URL
+    const resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
+    
+    let user;
+    
+    // Find user with the token and check if token is still valid
+    if (userType === 'admin') {
+      user = await prisma.admin.findFirst({
+        where: {
+          resetPasswordToken,
+          resetTokenExpiry: {
+            gt: new Date()
+          }
+        }
+      });
+    } else if (userType === 'client') {
+      user = await prisma.client.findFirst({
+        where: {
+          resetPasswordToken,
+          resetTokenExpiry: {
+            gt: new Date()
+          }
+        }
+      });
+    } else if (userType === 'artist') {
+      user = await prisma.artist.findFirst({
+        where: {
+          resetPasswordToken,
+          resetTokenExpiry: {
+            gt: new Date()
+          }
+        }
+      });
+    } else {
+      return res.status(400).json({ error: 'Invalid user type.' });
+    }
+    
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired token.' });
+    }
+    
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(password, 12);
+    
+    // Update user with new password and clear reset token fields
+    if (userType === 'admin') {
+      await prisma.admin.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          resetPasswordToken: null,
+          resetTokenExpiry: null
+        }
+      });
+    } else if (userType === 'client') {
+      await prisma.client.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          resetPasswordToken: null,
+          resetTokenExpiry: null
+        }
+      });
+    } else if (userType === 'artist') {
+      await prisma.artist.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          resetPasswordToken: null,
+          resetTokenExpiry: null
+        }
+      });
+    }
+    
+    // Send notification about successful password reset
+    try {
+      await sendNotification({
+        userId: user.id,
+        userType,
+        title: 'Password Reset Successful',
+        message: 'Your password has been successfully reset.',
+        type: 'system'
+      });
+    } catch (notificationError) {
+      console.error('Error sending password reset success notification:', notificationError);
+      // Continue even if notification fails
+    }
+    
+    // Send confirmation email
+    await sendEmail({
+      to: user.email,
+      subject: 'Password Reset Successful',
+      html: `
+        <h1>Password Reset Successful</h1>
+        <p>Your password has been successfully reset.</p>
+        <p>If you did not perform this action, please contact support immediately.</p>
+      `
+    });
+    
+    res.status(200).json({ message: 'Password has been reset successfully.' });
+  } catch (error) {
+    console.error('Error in resetPassword:', error);
+    res.status(500).json({ error: 'An error occurred while resetting your password.' });
+  }
+};
+
+/**
+ * Verify reset token validity
+ * @param {object} req - The request object
+ * @param {object} res - The response object
+ */
+export const verifyResetToken = async (req, res) => {
+  try {
+    const { token, userType } = req.params;
+    
+    if (!token || !userType) {
+      return res.status(400).json({ error: 'Missing required parameters.' });
+    }
+    
+    // Hash the token from the URL
+    const resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
+    
+    let user;
+    
+    // Find user with the token and check if token is still valid
+    if (userType === 'admin') {
+      user = await prisma.admin.findFirst({
+        where: {
+          resetPasswordToken,
+          resetTokenExpiry: {
+            gt: new Date()
+          }
+        }
+      });
+    } else if (userType === 'client') {
+      user = await prisma.client.findFirst({
+        where: {
+          resetPasswordToken,
+          resetTokenExpiry: {
+            gt: new Date()
+          }
+        }
+      });
+    } else if (userType === 'artist') {
+      user = await prisma.artist.findFirst({
+        where: {
+          resetPasswordToken,
+          resetTokenExpiry: {
+            gt: new Date()
+          }
+        }
+      });
+    } else {
+      return res.status(400).json({ error: 'Invalid user type.' });
+    }
+    
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired token.' });
+    }
+    
+    res.status(200).json({ message: 'Token is valid.', email: user.email });
+  } catch (error) {
+    console.error('Error in verifyResetToken:', error);
+    res.status(500).json({ error: 'An error occurred while verifying the token.' });
   }
 };
 
