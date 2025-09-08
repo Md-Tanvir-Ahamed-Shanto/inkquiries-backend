@@ -65,20 +65,20 @@ const profileStorage = multer.diskStorage({
 
 
 const fileFilter = (req, file, cb) => {
-  const allowedFileTypes = /jpeg|jpg|webp|png|gif/;
+  const allowedFileTypes = /jpeg|jpg|webp|png|svg|gif/;
   const mimeType = allowedFileTypes.test(file.mimetype);
   const extname = allowedFileTypes.test(path.extname(file.originalname).toLowerCase());
 
   if (mimeType && extname) {
     return cb(null, true);
   } else {
-    cb(new Error('Only image files (jpeg, jpg, png, gif) are allowed!'), false);
+    cb(new Error('Only image files (jpeg, jpg, png, svg, gif) are allowed!'), false);
   }
 };
 
 export const uploadReviewPhotos = multer({
   storage: reviewStorage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: fileFilter,
 });
 
@@ -92,12 +92,12 @@ export const uploadsBaseDir = UPLOADS_DIR;
 
 export const uploadGalleryImage = multer({
   storage: galleryStorage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: fileFilter,
 });
 
 export const uploadProfileImage = multer({
   storage: profileStorage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: fileFilter,
 });
