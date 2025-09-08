@@ -440,20 +440,6 @@ export const login = async (req, res) => {
     });
     const { password: _, ...userData } = user; // Destructure to remove password
 
-    // Send notification for successful login
-    try {
-      await sendNotification({
-        userId: user.id,
-        userType: role,
-        title: 'Successful Login',
-        message: `You have successfully logged in from a ${req.headers['user-agent'] ? req.headers['user-agent'].split('/')[0] : 'new'} device.`,
-        type: 'system',
-        actionLink: `/${role}/dashboard`
-      });
-    } catch (notificationError) {
-      console.error('Error sending login notification:', notificationError);
-      // Continue even if notification fails
-    }
 
     res.status(200).json({ message: 'Login successful.', token, user: userData, role });
   } catch (error) {
