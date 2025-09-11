@@ -206,7 +206,7 @@ export const markAllNotificationsAsRead = async (req, res) => {
     
     // Convert userId to string if it's a number
     const userIdStr = userId.toString();
-    
+    console.log("user id for notification",userIdStr)
     console.log('Marking all notifications as read:', { userId: userIdStr, userType });
 
     // Update all unread notifications for the user
