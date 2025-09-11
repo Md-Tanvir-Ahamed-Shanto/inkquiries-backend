@@ -8,14 +8,17 @@ export const protectArtist = (req, res, next) => {
     try {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, JWT_SECRET);
-      req.artist = decoded.id;
-      next();
+      if (decoded.role === 'artist') {
+        req.artist = decoded.id;
+        next();
+      } else {
+        res.status(403).json({ error: 'Access denied. Artist role required.' });
+      }
     } catch (error) {
       console.error('Error in authentication middleware:', error);
       res.status(401).json({ error: 'Not authorized, token failed.' });
     }
-  }
-  if (!token) {
+  } else if (!token) {
     res.status(401).json({ error: 'Not authorized, no token.' });
   }
 };
@@ -26,14 +29,46 @@ export const protectClient = (req, res, next) => {
     try {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, JWT_SECRET);
-      req.client = decoded.id;
+      if (decoded.role === 'client') {
+        req.client = decoded.id;
+        next();
+      } else {
+        res.status(403).json({ error: 'Access denied. Client role required.' });
+      }
+    } catch (error) {
+      console.error('Error in authentication middleware:', error);
+      res.status(401).json({ error: 'Not authorized, token failed.' });
+    }
+  } else if (!token) {
+    res.status(401).json({ error: 'Not authorized, no token.' });
+  }
+};
+
+// Middleware to protect routes that can be accessed by either clients or artists
+export const protectUser = (req, res, next) => {
+  let token;
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    try {
+      token = req.headers.authorization.split(' ')[1];
+      const decoded = jwt.verify(token, JWT_SECRET);
+      console.log('Decoded token:', decoded);
+      
+      if (decoded.role === 'client') {
+        req.client = decoded.id;
+        req.artist = null;
+      } else if (decoded.role === 'artist') {
+        req.artist = decoded.id;
+        req.client = null;
+      } else {
+        return res.status(403).json({ error: 'Access denied. Invalid role.' });
+      }
+      
       next();
     } catch (error) {
       console.error('Error in authentication middleware:', error);
       res.status(401).json({ error: 'Not authorized, token failed.' });
     }
-  }
-  if (!token) {
+  } else if (!token) {
     res.status(401).json({ error: 'Not authorized, no token.' });
   }
 };

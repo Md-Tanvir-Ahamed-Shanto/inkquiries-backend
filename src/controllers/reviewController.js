@@ -264,7 +264,18 @@ export const deleteReview = async (req, res) => {
 export const createComment = async (req, res) => {
   const { reviewId } = req.params;
   const { content } = req.body;
-  const clientId = req.client; // Assuming this is set by an auth middleware
+  let userId, userRole;
+  
+  // Determine if the user is a client or artist
+  if (req.client) {
+    userId = req.client;
+    userRole = 'client';
+  } else if (req.artist) {
+    userId = req.artist;
+    userRole = 'artist';
+  } else {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
 
   if (!content) {
     return res.status(400).json({ error: 'Comment content is required.' });
@@ -277,16 +288,32 @@ export const createComment = async (req, res) => {
       return res.status(404).json({ error: 'Review not found.' });
     }
 
+    // Prepare comment data based on user role
+    let commentData;
+    
+    if (userRole === 'client') {
+      commentData = {
+        reviewId,
+        content,
+        clientId: userId,
+        artistId: null
+      };
+    } else {
+      commentData = {
+        reviewId,
+        content,
+        artistId: userId,
+        clientId: null
+      };
+    }
+
     // Use a transaction to create the comment and update the review's comment count atomically
     const [newComment] = await prisma.$transaction([
       prisma.reviewComment.create({
-        data: {
-          clientId,
-          reviewId,
-          content,
-        },
+        data: commentData,
         include: {
-          client: { select: { id: true, name: true, username: true, profilePhoto: true } },
+          client: userRole === 'client' ? { select: { id: true, name: true, username: true, profilePhoto: true } } : undefined,
+          artist: userRole === 'artist' ? { select: { id: true, name: true, username: true, profilePhoto: true } } : undefined,
         },
       }),
       prisma.review.update({
@@ -300,24 +327,38 @@ export const createComment = async (req, res) => {
     ]);
     
     // Determine who should receive the notification
-    // If the client commenting is the review owner, notify the artist
-    // If the client commenting is not the review owner, notify the review owner (client)
     try {
-      if (review.clientId === clientId) {
-        // Comment is from the review owner, notify the artist
-        await sendCommentNotification({
-          comment: {
-            id: newComment.id,
-            type: 'review',
-            reviewId
-          },
-          recipient: {
-            id: review.artistId,
-            role: 'artist'
-          }
-        });
-      } else {
-        // Comment is from another client, notify the review owner
+      if (userRole === 'client') {
+        // Comment is from a client
+        if (review.clientId === userId) {
+          // Comment is from the review owner, notify the artist
+          await sendCommentNotification({
+            comment: {
+              id: newComment.id,
+              type: 'review',
+              reviewId
+            },
+            recipient: {
+              id: review.artistId,
+              role: 'artist'
+            }
+          });
+        } else {
+          // Comment is from another client, notify the review owner
+          await sendCommentNotification({
+            comment: {
+              id: newComment.id,
+              type: 'review',
+              reviewId
+            },
+            recipient: {
+              id: review.clientId,
+              role: 'client'
+            }
+          });
+        }
+      } else if (userRole === 'artist') {
+        // Comment is from an artist, notify the client who wrote the review
         await sendCommentNotification({
           comment: {
             id: newComment.id,
@@ -358,6 +399,7 @@ export const getCommentsForReview = async (req, res) => {
       orderBy: { createdAt: 'asc' },
       include: {
         client: { select: { id: true, name: true, username: true, profilePhoto: true } },
+        artist: { select: { id: true, name: true, username: true, profilePhoto: true } },
       },
     });
 
@@ -382,7 +424,18 @@ export const getCommentsForReview = async (req, res) => {
 export const updateComment = async (req, res) => {
   const { id } = req.params;
   const { content } = req.body;
-  const clientId = req.client;
+  let userId, userRole;
+  
+  // Determine if the user is a client or artist
+  if (req.client) {
+    userId = req.client;
+    userRole = 'client';
+  } else if (req.artist) {
+    userId = req.artist;
+    userRole = 'artist';
+  } else {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
 
   if (!content) {
     return res.status(400).json({ error: 'Comment content is required for update.' });
@@ -393,8 +446,9 @@ export const updateComment = async (req, res) => {
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found.' });
     }
-    // Authorization check: ensure the client owns the comment
-    if (comment.clientId !== clientId) {
+    // Authorization check: ensure the user owns the comment
+    if ((userRole === 'client' && comment.clientId !== userId) || 
+        (userRole === 'artist' && comment.artistId !== userId)) {
       return res.status(403).json({ error: 'You are not authorized to update this comment.' });
     }
 
@@ -412,15 +466,27 @@ export const updateComment = async (req, res) => {
 
 export const deleteComment = async (req, res) => {
   const { id } = req.params;
-  const clientId = req.client;
+  let userId, userRole;
+  
+  // Determine if the user is a client or artist
+  if (req.client) {
+    userId = req.client;
+    userRole = 'client';
+  } else if (req.artist) {
+    userId = req.artist;
+    userRole = 'artist';
+  } else {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
 
   try {
     const comment = await prisma.reviewComment.findUnique({ where: { id } });
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found.' });
     }
-    // Authorization check: ensure the client owns the comment
-    if (comment.clientId !== clientId) {
+    // Authorization check: ensure the user owns the comment
+    if ((userRole === 'client' && comment.clientId !== userId) || 
+        (userRole === 'artist' && comment.artistId !== userId)) {
       return res.status(403).json({ error: 'You are not authorized to delete this comment.' });
     }
     
@@ -446,7 +512,18 @@ export const deleteComment = async (req, res) => {
 
 export const likeReview = async (req, res) => {
   const { reviewId } = req.params;
-  const clientId = req.client; // Assuming auth middleware provides the client ID
+  let userId, userRole;
+  
+  // Determine if the user is a client or artist
+  if (req.client) {
+    userId = req.client;
+    userRole = 'client';
+  } else if (req.artist) {
+    userId = req.artist;
+    userRole = 'artist';
+  } else {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
 
   try {
     const review = await prisma.review.findUnique({
@@ -457,32 +534,53 @@ export const likeReview = async (req, res) => {
       return res.status(404).json({ error: 'Review not found.' });
     }
 
-    // Prevents a client from liking their own review
-    // if (review.clientId === clientId) {
-    //   return res.status(403).json({ error: 'You cannot like your own review.' });
-    // }
-
-    // Check if user has already liked this review
-    const existingLike = await prisma.reviewLike.findUnique({
-      where: {
-        clientId_reviewId: {
-          clientId,
-          reviewId,
+    // Check if user has already liked this review based on their role
+    let existingLike;
+    
+    if (userRole === 'client') {
+      existingLike = await prisma.reviewLike.findUnique({
+        where: {
+          clientId_reviewId: {
+            clientId: userId,
+            reviewId,
+          },
         },
-      },
-    });
+      });
+    } else if (userRole === 'artist') {
+      existingLike = await prisma.reviewLike.findUnique({
+        where: {
+          artistId_reviewId: {
+            artistId: userId,
+            reviewId,
+          },
+        },
+      });
+    }
 
     if (existingLike) {
       return res.status(400).json({ error: 'You have already liked this review.' });
     }
 
+    // Prepare like data based on user role
+    const likeData = {
+      reviewId
+    };
+    
+    // Set the appropriate ID field based on user role
+    if (userRole === 'client') {
+      likeData.clientId = userId;
+      // Ensure artistId is null to avoid foreign key constraint issues
+      likeData.artistId = null;
+    } else {
+      likeData.artistId = userId;
+      // Ensure clientId is null to avoid foreign key constraint issues
+      likeData.clientId = null;
+    }
+
     // Create like record and increment count in a transaction
     const [newLike, updatedReview] = await prisma.$transaction([
       prisma.reviewLike.create({
-        data: {
-          clientId,
-          reviewId,
-        },
+        data: likeData,
       }),
       prisma.review.update({
         where: { id: reviewId },
@@ -504,7 +602,18 @@ export const likeReview = async (req, res) => {
 // Function to decrement the like count for a review
 export const unlikeReview = async (req, res) => {
   const { reviewId } = req.params;
-  const clientId = req.client; // Assuming auth middleware provides the client ID
+  let userId, userRole;
+  
+  // Determine if the user is a client or artist
+  if (req.client) {
+    userId = req.client;
+    userRole = 'client';
+  } else if (req.artist) {
+    userId = req.artist;
+    userRole = 'artist';
+  } else {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
 
   try {
     const review = await prisma.review.findUnique({
@@ -515,35 +624,58 @@ export const unlikeReview = async (req, res) => {
       return res.status(404).json({ error: 'Review not found.' });
     }
 
-    // Prevents a client from unliking their own review (optional check)
-    if (review.clientId === clientId) {
-      return res.status(403).json({ error: 'You cannot unlike your own review.' });
-    }
-
-    // Check if user has actually liked this review
-    const existingLike = await prisma.reviewLike.findUnique({
-      where: {
-        clientId_reviewId: {
-          clientId,
-          reviewId,
+    // Remove restriction on unliking own review for both clients and artists
+    // Check if user has actually liked this review based on their role
+    let existingLike;
+    
+    if (userRole === 'client') {
+      existingLike = await prisma.reviewLike.findUnique({
+        where: {
+          clientId_reviewId: {
+            clientId: userId,
+            reviewId,
+          },
         },
-      },
-    });
+      });
+    } else if (userRole === 'artist') {
+      existingLike = await prisma.reviewLike.findUnique({
+        where: {
+          artistId_reviewId: {
+            artistId: userId,
+            reviewId,
+          },
+        },
+      });
+    }
 
     if (!existingLike) {
       return res.status(400).json({ error: 'You have not liked this review.' });
     }
 
     // Delete like record and decrement count in a transaction
-    const [deletedLike, updatedReview] = await prisma.$transaction([
-      prisma.reviewLike.delete({
+    let deleteQuery;
+    if (userRole === 'client') {
+      deleteQuery = prisma.reviewLike.delete({
         where: {
           clientId_reviewId: {
-            clientId,
+            clientId: userId,
             reviewId,
           },
         },
-      }),
+      });
+    } else {
+      deleteQuery = prisma.reviewLike.delete({
+        where: {
+          artistId_reviewId: {
+            artistId: userId,
+            reviewId,
+          },
+        },
+      });
+    }
+    
+    const [deletedLike, updatedReview] = await prisma.$transaction([
+      deleteQuery,
       prisma.review.update({
         where: { id: reviewId },
         data: {
@@ -564,17 +696,41 @@ export const unlikeReview = async (req, res) => {
 // Function to check if a user has liked a review
 export const checkUserLikeStatus = async (req, res) => {
   const { reviewId } = req.params;
-  const clientId = req.client;
+  let userId, userRole;
+  
+  // Determine if the user is a client or artist
+  if (req.client) {
+    userId = req.client;
+    userRole = 'client';
+  } else if (req.artist) {
+    userId = req.artist;
+    userRole = 'artist';
+  } else {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
 
   try {
-    const existingLike = await prisma.reviewLike.findUnique({
-      where: {
-        clientId_reviewId: {
-          clientId,
-          reviewId,
+    let existingLike;
+    
+    if (userRole === 'client') {
+      existingLike = await prisma.reviewLike.findUnique({
+        where: {
+          clientId_reviewId: {
+            clientId: userId,
+            reviewId,
+          },
         },
-      },
-    });
+      });
+    } else if (userRole === 'artist') {
+      existingLike = await prisma.reviewLike.findUnique({
+        where: {
+          artistId_reviewId: {
+            artistId: userId,
+            reviewId,
+          },
+        },
+      });
+    }
 
     res.status(200).json({ isLiked: !!existingLike });
    } catch (error) {
@@ -586,7 +742,18 @@ export const checkUserLikeStatus = async (req, res) => {
 // Function to check like status for multiple reviews in batch
 export const checkBatchUserLikeStatus = async (req, res) => {
   const { reviewIds } = req.body; // Array of review IDs
-  const clientId = req.client;
+  let userId, userRole;
+  
+  // Determine if the user is a client or artist
+  if (req.client) {
+    userId = req.client;
+    userRole = 'client';
+  } else if (req.artist) {
+    userId = req.artist;
+    userRole = 'artist';
+  } else {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
 
   // Input validation
   if (!reviewIds || !Array.isArray(reviewIds) || reviewIds.length === 0) {
@@ -605,18 +772,36 @@ export const checkBatchUserLikeStatus = async (req, res) => {
   }
 
   try {
-    // Single optimized query using indexes
-    const existingLikes = await prisma.reviewLike.findMany({
-      where: {
-        clientId,
-        reviewId: {
-          in: reviewIds,
+    // Single optimized query using indexes based on user role
+    let existingLikes;
+    
+    if (userRole === 'client') {
+      existingLikes = await prisma.reviewLike.findMany({
+        where: {
+          clientId: userId,
+          reviewId: {
+            in: reviewIds,
+          },
         },
-      },
-      select: {
-        reviewId: true,
-      },
-    });
+        select: {
+          reviewId: true,
+        },
+      });
+    } else if (userRole === 'artist') {
+      existingLikes = await prisma.reviewLike.findMany({
+        where: {
+          artistId: userId,
+          reviewId: {
+            in: reviewIds,
+          },
+        },
+        select: {
+          reviewId: true,
+        },
+      });
+    } else {
+      existingLikes = [];
+    }
 
     // Create a map of reviewId -> isLiked using Set for O(1) lookup
     const likeStatusMap = {};

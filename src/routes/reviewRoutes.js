@@ -20,7 +20,7 @@ import {
   acceptReviewReport,
   changeStatus,
 } from "../controllers/reviewController.js";
-import { protectArtist, protectClient } from "../middleware/auth.js";
+import { protectArtist, protectClient, protectUser } from "../middleware/auth.js";
 import { uploadReviewPhotos } from "../config/multerConfig.js";
 const router = Router();
 
@@ -39,26 +39,26 @@ router
 // Get all comments for a specific review
 router.get("/:reviewId/comments", getCommentsForReview);
 
-// Create a new comment on a review (requires authentication)
-router.post("/:reviewId/comments", protectClient, createComment);
+// Create a new comment on a review (requires authentication - either client or artist)
+router.post("/:reviewId/comments", protectUser, createComment);
 
-// Update a specific comment (requires authentication and ownership)
-router.patch("/comments/:id", protectClient, updateComment);
+// Update a specific comment (requires authentication and ownership - either client or artist)
+router.patch("/comments/:id", protectUser, updateComment);
 
-// Delete a specific comment (requires authentication and ownership)
-router.delete("/comments/:id", protectClient, deleteComment);
+// Delete a specific comment (requires authentication and ownership - either client or artist)
+router.delete("/comments/:id", protectUser, deleteComment);
 
-// Endpoint to like a review
-router.post("/:reviewId/like", protectClient, likeReview);
+// Endpoint to like a review (either client or artist)
+router.post("/:reviewId/like", protectUser, likeReview);
 
-// Endpoint to unlike a review
-router.post("/:reviewId/unlike", protectClient, unlikeReview);
+// Endpoint to unlike a review (either client or artist)
+router.post("/:reviewId/unlike", protectUser, unlikeReview);
 
-// Endpoint to check user's like status for a review
-router.get("/:reviewId/like-status", protectClient, checkUserLikeStatus);
+// Endpoint to check user's like status for a review (either client or artist)
+router.get("/:reviewId/like-status", protectUser, checkUserLikeStatus);
 
-// Endpoint to check user's like status for multiple reviews in batch
-router.post("/batch/like-status", protectClient, checkBatchUserLikeStatus);
+// Endpoint to check user's like status for multiple reviews in batch (either client or artist)
+router.post("/batch/like-status", protectUser, checkBatchUserLikeStatus);
 
 router.post('/:reviewId/report', protectArtist, reportReview);
 router.get('/reports/all', getAllReportsReview);

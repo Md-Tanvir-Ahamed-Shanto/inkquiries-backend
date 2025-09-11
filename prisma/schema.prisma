@@ -92,6 +92,8 @@ model Artist {
   gallaryImages   GallaryImage[]
   promotions      Promotion[]
   reportedReviews ReviewReport[]
+  reviewLikes     ReviewLike[]
+  reviewComments  ReviewComment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -151,6 +153,8 @@ model ReviewComment {
   id       String  @id @default(cuid())
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  artistId String?
+  artist   Artist? @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
   reviewId String
   review   Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
@@ -165,8 +169,10 @@ model ReviewComment {
 //
 model ReviewLike {
   id       String @id @default(cuid())
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  artistId String?
+  artist   Artist? @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
   reviewId String
   review   Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
@@ -174,7 +180,9 @@ model ReviewLike {
   createdAt DateTime @default(now())
 
   @@unique([clientId, reviewId])
+  @@unique([artistId, reviewId])
   @@index([clientId]) // Optimize queries filtering by clientId
+  @@index([artistId]) // Optimize queries filtering by artistId
   @@index([reviewId]) // Optimize queries filtering by reviewId
   @@map("review_likes")
 }
