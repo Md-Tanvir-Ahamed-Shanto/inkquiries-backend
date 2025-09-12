@@ -333,15 +333,20 @@ export const deleteArtist = async (req, res) => {
 };
 
 export const searchArtists = async (req, res) => {
-  const { q } = req.query;
-  if (!q) {
-    return res.status(400).json({ error: "Search query is required." });
+  const { q, location, style } = req.query;
+  
+  // Check if at least one search parameter is provided
+  if (!q && !location && !style) {
+    return res.status(400).json({ error: "At least one search parameter is required." });
   }
 
   try {
-    // Find artists matching the search query
-    const artists = await prisma.artist.findMany({
-      where: {
+    // Build search conditions
+    const searchConditions = [];
+    
+    // Add name/username search if q parameter is provided
+    if (q) {
+      searchConditions.push({
         OR: [
           {
             username: {
@@ -356,6 +361,32 @@ export const searchArtists = async (req, res) => {
             },
           },
         ],
+      });
+    }
+    
+    // Add location search if location parameter is provided
+    if (location && location !== "None") {
+      searchConditions.push({
+        location: {
+          contains: location,
+          mode: "insensitive",
+        },
+      });
+    }
+    
+    // Add style/specialty search if style parameter is provided
+    if (style && style !== "None") {
+      searchConditions.push({
+        specialties: {
+          has: style,
+        },
+      });
+    }
+    
+    // Find artists matching the search criteria
+    const artists = await prisma.artist.findMany({
+      where: {
+        AND: searchConditions,
       },
       select: {
         id: true,

@@ -96,12 +96,18 @@ export const createReview = async (req, res) => {
 };
 
 export const getReviews = async (req, res) => {
-  const { artistId, clientId, page = 1, limit = 10, tattooStyle, location, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+  const { artistId, clientId, page = 1, limit = 10, tattooStyle, location, sortBy = 'createdAt', sortOrder = 'desc', includeRestricted = 'false' } = req.query;
   const where = {};
+
   if (artistId) where.artistId = artistId;
   if (clientId) where.clientId = clientId;
   if (tattooStyle) where.tattooStyle = tattooStyle;
   if (location) where.location = location;
+
+  // Conditionally add the status filter
+  if (includeRestricted.toLowerCase() !== 'true') {
+    where.status = { not: 'restricted' }; // Filter out reviews with a 'restricted' status
+  }
 
   const pageNumber = parseInt(page, 10);
   const pageSize = parseInt(limit, 10);
@@ -114,7 +120,7 @@ export const getReviews = async (req, res) => {
   const sortField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
   const sortDirection = validSortOrders.includes(sortOrder) ? sortOrder : 'desc';
   
-  // Map overallRating to overallExperience for database field
+  // Map overallRating to overallExperience for the database field
   const dbSortField = sortField === 'overallRating' ? 'overallExperience' : sortField;
 
   try {
