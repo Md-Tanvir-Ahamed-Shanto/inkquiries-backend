@@ -228,7 +228,7 @@ export const sendCommentNotification = async (data) => {
     type: 'comment',
     actionLink: comment.type === 'review' 
       ? `/reviews/${comment.reviewId}` 
-      : `/portfolio/${comment.portfolioImageId}`,
+      : `/artist/dashboard?tab=portfolio`,
     metadata: {
       commentId: comment.id,
       commentType: comment.type,
