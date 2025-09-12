@@ -227,7 +227,7 @@ export const sendCommentNotification = async (data) => {
     message: `Someone commented on your ${comment.type === 'review' ? 'review' : 'portfolio image'}.`,
     type: 'comment',
     actionLink: comment.type === 'review' 
-      ? `/reviews/${comment.reviewId}` 
+      ? `/review/${comment.reviewId}` 
       : `/artist/dashboard?tab=portfolio`,
     metadata: {
       commentId: comment.id,
@@ -250,7 +250,7 @@ export const sendHealedPhotoReminder = async (data) => {
     title: 'Healed Tattoo Photo Reminder',
     message: `It's been ${timeframe} since your tattoo. Time to upload a healed photo!`,
     type: 'healed_photo',
-    actionLink: `/reviews/${review.id}/upload-healed`,
+    actionLink: `/review/${review.id}/upload-healed`,
     metadata: {
       reviewId: review.id,
       timeframe,
