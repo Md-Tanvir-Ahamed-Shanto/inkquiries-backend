@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { sendNotification } from '../services/notificationService.js';
 import { sendEmail } from '../services/emailService.js';
+import oauthService from '../services/oauthService.js';
 import dotenv from 'dotenv';
 
 const prisma = new PrismaClient();
@@ -27,7 +28,126 @@ const generateToken = (id, role) => {
  * @param {object} res - The response object.
  */
 /**
- * Handles the callback from social login providers (Facebook, Instagram).
+ * Initiate Facebook OAuth authentication
+ * @param {object} req - The request object
+ * @param {object} res - The response object
+ */
+export const initiateFacebookAuth = async (req, res) => {
+  try {
+    const { role = 'client', includeInstagram = false } = req.query;
+    
+    // Get Facebook OAuth URL
+    const authUrl = oauthService.getFacebookAuthUrl(role, includeInstagram === 'true');
+    
+    // Redirect to Facebook OAuth
+    res.redirect(authUrl);
+  } catch (error) {
+    console.error('Error initiating Facebook auth:', error);
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=Authentication failed`);
+  }
+};
+
+/**
+ * Handle Facebook OAuth callback
+ * @param {object} req - The request object
+ * @param {object} res - The response object
+ */
+export const handleFacebookCallback = async (req, res) => {
+  try {
+    const { code, state, error } = req.query;
+    
+    if (error) {
+      console.error('Facebook OAuth error:', error);
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=Authentication cancelled`);
+    }
+    
+    if (!code || !state) {
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=Invalid authentication response`);
+    }
+    
+    // Validate state parameter
+    let stateData;
+    try {
+      stateData = oauthService.validateState(state);
+    } catch (stateError) {
+      console.error('State validation error:', stateError);
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=Invalid authentication state`);
+    }
+    
+    // Handle OAuth callback
+    const { user, token, instagramAccounts } = await oauthService.handleCallback(code, stateData);
+    
+    // Set cookies
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
+    
+    const { password: _, ...userData } = user;
+    res.cookie('user', JSON.stringify(userData), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
+    
+    // Send notification for successful login
+    try {
+      const instagramMessage = instagramAccounts.length > 0 
+        ? ` with ${instagramAccounts.length} Instagram account(s) connected`
+        : '';
+      
+      await sendNotification({
+        userId: user.id,
+        userType: user.role,
+        title: 'Successful Social Login',
+        message: `You have successfully logged in with Facebook${instagramMessage}.`,
+        type: 'system',
+        actionLink: `/${user.role}/dashboard`
+      });
+    } catch (notificationError) {
+      console.error('Error sending social login notification:', notificationError);
+      // Continue even if notification fails
+    }
+    
+    // Redirect to the appropriate dashboard based on role
+    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/${user.role}/dashboard`);
+  } catch (error) {
+    console.error('Error during Facebook OAuth callback:', error);
+    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=Authentication failed`);
+  }
+};
+
+/**
+ * Get Instagram media for authenticated user
+ * @param {object} req - The request object
+ * @param {object} res - The response object
+ */
+export const getInstagramMedia = async (req, res) => {
+  try {
+    const { user } = req; // Assuming user is attached by auth middleware
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const instagramMedia = await oauthService.getInstagramMedia(user.id, user.role);
+    
+    res.status(200).json({
+      success: true,
+      data: instagramMedia,
+      message: instagramMedia.length > 0 
+        ? `Found ${instagramMedia.length} Instagram posts`
+        : 'No Instagram media found or Instagram not connected'
+    });
+  } catch (error) {
+    console.error('Error fetching Instagram media:', error);
+    res.status(500).json({ error: 'Failed to fetch Instagram media' });
+  }
+};
+
+/**
+ * Legacy callback handler for backward compatibility
  * @param {object} req - The request object with authenticated user from Passport.
  * @param {object} res - The response object.
  */

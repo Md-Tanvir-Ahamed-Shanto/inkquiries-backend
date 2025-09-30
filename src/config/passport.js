@@ -1,6 +1,7 @@
 import passport from 'passport';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
-import { Strategy as InstagramStrategy } from 'passport-instagram'; // Note: Instagram API has changed significantly. This strategy might require specific setups or older API versions.
+// Note: Instagram Basic Display API was deprecated on December 4, 2024
+// Instagram OAuth has been removed due to API deprecation
 import { PrismaClient } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import dotenv from 'dotenv';
@@ -32,6 +33,8 @@ passport.use(
       callbackURL: process.env.FACEBOOK_CALLBACK_URL,
       profileFields: ['id', 'displayName', 'emails', 'photos'],
       passReqToCallback: true, // Pass request to callback
+      enableProof: true, // Enable app secret proof for enhanced security
+      scope: ['email'], // Request email permission
     },
     async (req, accessToken, refreshToken, profile, done) => {
       try {
@@ -174,112 +177,8 @@ passport.use(
   )
 );
 
-passport.use(
-  new InstagramStrategy(
-    {
-      clientID: process.env.INSTAGRAM_APP_ID,
-      clientSecret: process.env.INSTAGRAM_APP_SECRET,
-      callbackURL: process.env.INSTAGRAM_CALLBACK_URL,
-      passReqToCallback: true, // Pass request to callback
-      // You might need to specify scope depending on Instagram API version and permissions
-      // scope: ['user_profile', 'user_media'], // For Instagram Basic Display API
-    },
-    async (req, accessToken, refreshToken, profile, done) => {
-      // Instagram's API is very strict. User emails are not typically provided directly.
-      try {
-        let user;
-        // Get role from session if available, otherwise default to client
-        let role = req.session?.socialLoginRole || 'client';
-        
-        // Check if this social account already exists
-        const socialAccount = await prisma.socialAccount.findUnique({
-          where: {
-            provider_providerAccountId: {
-              provider: 'instagram',
-              providerAccountId: profile.id,
-            },
-          },
-        });
-
-        if (socialAccount) {
-          // If social account exists, find the linked user (either client or artist)
-          if (socialAccount.clientId) {
-            user = await prisma.client.findUnique({ where: { id: socialAccount.clientId } });
-            role = 'client';
-          } else if (socialAccount.artistId) {
-            user = await prisma.artist.findUnique({ where: { id: socialAccount.artistId } });
-            role = 'artist';
-          }
-        } else {
-          // With Instagram, we might not get an email, so we'll create a new client
-          const hashedPassword = await generateRandomPassword();
-          const username = (profile.displayName || `InstagramUser_${profile.id}`).toLowerCase().replace(/\s+/g, '') + Math.floor(Math.random() * 1000);
-          
-          // Create a new user based on role
-          if (role === 'artist') {
-            user = await prisma.artist.create({
-              data: {
-                email: `instagram_${profile.id}@example.com`, // Placeholder email
-                name: profile.displayName || `InstagramUser_${profile.id}`,
-                username: username,
-                password: hashedPassword,
-                profilePhoto: profile.photos && profile.photos.length > 0 ? profile.photos[0].value : null,
-                role: 'artist', // Explicitly set role
-                socialLogin: {
-                  provider: 'instagram',
-                  id: profile.id,
-                  displayName: profile.displayName || `InstagramUser_${profile.id}`
-                },
-                isActive: true
-              },
-            });
-          } else {
-            // Default to client
-            user = await prisma.client.create({
-              data: {
-                email: `instagram_${profile.id}@example.com`, // Placeholder email
-                name: profile.displayName || `InstagramUser_${profile.id}`,
-                username: username,
-                password: hashedPassword,
-                profilePhoto: profile.photos && profile.photos.length > 0 ? profile.photos[0].value : null,
-                role: 'client', // Explicitly set role
-                socialLogin: {
-                  provider: 'instagram',
-                  id: profile.id,
-                  displayName: profile.displayName || `InstagramUser_${profile.id}`
-                },
-                isActive: true
-              },
-            });
-          }
-          
-          // Create the social account link based on role
-            await prisma.socialAccount.create({
-              data: {
-                provider: 'instagram',
-                providerAccountId: profile.id,
-                ...(role === 'artist' ? { artistId: user.id } : { clientId: user.id }),
-                accessToken,
-                refreshToken,
-                tokenExpiry: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60 days
-                profileData: profile._json
-              },
-            });
-        }
-        
-        // Attach JWT and role to user object for transport
-        const token = generateToken(user.id, role);
-        user.token = token;
-        user.role = role;
-        
-        return done(null, user);
-      } catch (error) {
-        console.error('Error during Instagram authentication:', error);
-        return done(error, false);
-      }
-    }
-  )
-);
+// Instagram OAuth strategy removed due to Instagram Basic Display API deprecation (December 4, 2024)
+// For Instagram integration, consider using Facebook Login for Instagram or alternative approaches
 
 // Serialize and deserialize user for session management
 passport.serializeUser((user, done) => {

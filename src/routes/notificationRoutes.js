@@ -59,8 +59,8 @@ const protectUser = (req, res, next) => {
 // Notification routes
 router.post('/', protectUser, createNotification); // Create notification endpoint
 router.get('/', protectUser, getUserNotifications);
+router.put('/mark-all-read', protectUser, markAllNotificationsAsRead); // Specific route must come before generic /:id route
 router.put('/:id', protectUser, markNotificationAsRead);
-router.put('/mark-all-read', protectUser, markAllNotificationsAsRead);
 router.delete('/:id', protectUser, deleteNotification);
 
 // Notification preferences routes

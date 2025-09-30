@@ -20,7 +20,7 @@ export const triggerNewReviewNotification = async (review, client, artist) => {
       rating: review.rating,
       title: 'New Review Received',
       message: `${client.name || client.username} left you a ${review.rating}-star review.`,
-      actionLink: `/reviews/${review.id}`
+      actionLink: `https://inkquiries.org/reviews/${review.id}`
     });
   } catch (error) {
     console.error('Failed to trigger review notification:', error);
@@ -44,7 +44,7 @@ export const triggerReviewCommentNotification = async (comment, review, commente
       commenterName: commenter.name || commenter.username,
       title: 'New Comment on Your Review',
       message: `${commenter.name || commenter.username} commented on your review.`,
-      actionLink: `/reviews/${review.id}#comment-${comment.id}`
+      actionLink: `https://inkquiries.org/reviews/${review.id}#comment-${comment.id}`
     });
   } catch (error) {
     console.error('Failed to trigger comment notification:', error);
@@ -67,7 +67,7 @@ export const triggerPortfolioCommentNotification = async (comment, portfolioImag
       commenterName: commenter.name || commenter.username,
       title: 'New Comment on Your Portfolio',
       message: `${commenter.name || commenter.username} commented on your portfolio image.`,
-      actionLink: `/portfolio/${portfolioImage.id}#comment-${comment.id}`
+      actionLink: `https://inkquiries.org/portfolio/${portfolioImage.id}#comment-${comment.id}`
     });
   } catch (error) {
     console.error('Failed to trigger portfolio comment notification:', error);
@@ -86,7 +86,7 @@ export const triggerHealedPhotoReminder = async (review, client) => {
       reviewId: review.id,
       title: 'Reminder: Upload Healed Photo',
       message: 'Please upload a photo of your healed tattoo to complete your review.',
-      actionLink: `/reviews/${review.id}/edit`
+      actionLink: `https://inkquiries.org/reviews/${review.id}/edit`
     });
   } catch (error) {
     console.error('Failed to trigger healed photo reminder:', error);
