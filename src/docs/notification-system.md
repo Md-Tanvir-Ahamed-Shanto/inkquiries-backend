@@ -2,7 +2,7 @@
 
 ## Overview
 
-The notification system provides a comprehensive solution for sending and managing notifications to users in the Inkquiries Tattoo platform. It supports multiple notification types and delivery channels, with user-configurable preferences.
+The notification system provides a comprehensive solution for sending and managing notifications to users in the Inkquiries platform. It supports multiple notification types and delivery channels, with user-configurable preferences.
 
 ## Models
 
