@@ -77,16 +77,14 @@ export const handleFacebookCallback = async (req, res) => {
     // Handle OAuth callback
     const { user, token, instagramAccounts } = await oauthService.handleCallback(code, stateData);
     
-    // Set cookies
+    // Set cookies (accessible to JavaScript for frontend use)
     res.cookie('token', token, {
-      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
     });
     
     const { password: _, ...userData } = user;
     res.cookie('user', JSON.stringify(userData), {
-      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
     });
@@ -110,8 +108,10 @@ export const handleFacebookCallback = async (req, res) => {
       // Continue even if notification fails
     }
     
-    // Redirect to the appropriate dashboard based on role
-    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/${user.role}/dashboard`);
+    // Redirect to frontend callback page with user data for localStorage handling
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const callbackUrl = `${frontendUrl}/auth/callback?success=true&role=${user.role}`;
+    return res.redirect(callbackUrl);
   } catch (error) {
     console.error('Error during Facebook OAuth callback:', error);
     return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=Authentication failed`);
@@ -163,16 +163,14 @@ export const socialLoginCallback = async (req, res) => {
     // User object should already have token and role attached by the Passport strategy
     const { token, role } = user;
     
-    // Set cookies
+    // Set cookies (accessible to JavaScript for frontend use)
     res.cookie('token', token, {
-      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
     });
     
     const { password: _, ...userData } = user;
     res.cookie('user', JSON.stringify(userData), {
-      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
     });
@@ -549,12 +547,10 @@ export const login = async (req, res) => {
 
     const token = generateToken(user.id, role);
     res.cookie('token', token, {
-      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
     });
     res.cookie('user', JSON.stringify(user), {
-      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
     });

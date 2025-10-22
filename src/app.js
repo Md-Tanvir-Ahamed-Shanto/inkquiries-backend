@@ -1,6 +1,5 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import passport from 'passport';
 import session from 'express-session';
 import cors from 'cors';
 import cookieParser from "cookie-parser";
@@ -8,8 +7,7 @@ import morgan from "morgan";
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Import Passport configuration
-import './config/passport.js';
+// Note: Passport.js removed in favor of modern OAuth service
 import { uploadsBaseDir } from './config/multerConfig.js';
 
 import authRoutes from './routes/authRoutes.js';
@@ -48,9 +46,7 @@ app.use(session({
   cookie: { secure: process.env.NODE_ENV === 'production' }
 }));
 
-// Initialize Passport
-app.use(passport.initialize());
-app.use(passport.session());
+// Note: Passport.js initialization removed - using modern OAuth service instead
 
 app.use('/uploads', express.static(path.join(uploadsBaseDir, '../uploads')));
 

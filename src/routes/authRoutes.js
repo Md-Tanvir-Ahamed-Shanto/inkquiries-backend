@@ -1,8 +1,6 @@
 import { Router } from 'express';
-import passport from 'passport';
 import { 
   login, 
-  socialLoginCallback, 
   initiateFacebookAuth, 
   handleFacebookCallback, 
   getInstagramMedia,
@@ -40,15 +38,6 @@ router.get('/instagram/callback', handleFacebookCallback);
 // Get Instagram media for authenticated users
 router.get('/instagram/media', getInstagramMedia);
 
-// Legacy Passport.js routes (for backward compatibility if needed)
-// These can be removed once frontend is updated
-router.get('/facebook-legacy', (req, res, next) => {
-  // Store the role in session if provided
-  if (req.query.role) {
-    req.session.socialLoginRole = req.query.role;
-  }
-  passport.authenticate('facebook', { scope: ['email'] })(req, res, next);
-});
-router.get('/facebook-legacy/callback', passport.authenticate('facebook', { session: false, failureRedirect: '/login' }), socialLoginCallback);
+// Legacy Passport.js routes removed - using modern OAuth service only
 
 export default router;
