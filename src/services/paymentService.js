@@ -223,18 +223,19 @@ class PaymentService {
       };
     }
     
-    if (endpoint.includes('hosted-payment-pages')) {
-      // Use a realistic Bank of America hosted payment page URL format
-      const mockToken = 'boa-' + Math.random().toString(36).substring(2, 10);
+    if (endpoint.includes('payments/flex/v1/checkout-sessions') || endpoint.includes('hosted-payment-pages')) {
+      // Use a realistic mock hosted payment page URL
+      const mockToken = 'mock-' + Math.random().toString(36).substring(2, 10);
       const mockSessionId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
       
       return {
-        url: `https://secure.bankofamerica.com/payment/gateway/hpp/${mockSessionId}?token=${mockToken}`,
+        id: mockSessionId,
+        url: `https://secure.cybersource.com/payment/gateway/hpp/${mockSessionId}?token=${mockToken}`,
         token: mockToken,
         expiresAt: new Date(Date.now() + 3600000).toISOString(),
-        amount: data.amount || 99.99,
-        currency: data.currency || 'USD',
-        description: data.description || 'Test Payment',
+        amount: data.orderInformation?.amountDetails?.totalAmount || data.amount || 99.99,
+        currency: data.orderInformation?.amountDetails?.currency || data.currency || 'USD',
+        description: data.clientReferenceInformation?.code || data.description || 'Test Payment',
         isMockPayment: true
       };
     }
@@ -567,10 +568,11 @@ class PaymentService {
       }
       
       const response = await this.makeRequest('payments/flex/v1/checkout-sessions', payload);
+      const sessionId = response.id || `hpp_${Date.now()}`;
       
       return {
-        id: response.id || `hpp_${Date.now()}`,
-        url: response.url || `https://secure.cybersource.com/checkout/${response.id}`,
+        id: sessionId,
+        url: response.url || `https://secure.cybersource.com/checkout/${sessionId}`,
         status: 'created',
         expiresAt: new Date(Date.now() + 3600000).toISOString()
       };
