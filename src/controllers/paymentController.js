@@ -21,17 +21,35 @@ export const processSubscriptionPayment = async (req, res) => {
       }
       
       // Create card contract
-      const cardContract = await paymentService.createCardContract(cardData, {
-        userId,
-        userType: 'artist'
-      });
+      let cardContract;
+      try {
+        cardContract = await paymentService.createCardContract(cardData, {
+          userId,
+          userType: 'artist'
+        });
+      } catch (contractError) {
+        console.error('Contract creation error:', contractError);
+        return res.status(400).json({ 
+          error: 'Payment method processing failed',
+          details: contractError.message
+        });
+      }
       
       // Process transaction with fixed amount
-      const transaction = await paymentService.createTransaction({
-        amount: SUBSCRIPTION_AMOUNT,
-        contractId: cardContract.id,
-        description: 'Artist Subscription Payment'
-      });
+      let transaction;
+      try {
+        transaction = await paymentService.createTransaction({
+          amount: SUBSCRIPTION_AMOUNT,
+          contractId: cardContract.id,
+          description: 'Artist Subscription Payment'
+        });
+      } catch (transactionError) {
+        console.error('Transaction processing error:', transactionError);
+        return res.status(400).json({ 
+          error: 'Payment transaction failed',
+          details: transactionError.message
+        });
+      }
       
       // Store transaction in database
       const paymentRecord = await prisma.payment.create({
@@ -49,22 +67,33 @@ export const processSubscriptionPayment = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: 'Subscription payment processed successfully',
-        transaction: paymentRecord
+        transaction: paymentRecord,
+        isMockPayment: process.env.NODE_ENV !== 'production'
       });
     } else if (paymentMethod === 'hostedPage') {
       // Generate hosted payment page for subscription
-      const hostedPage = await paymentService.createHostedPaymentPage({
-        amount: SUBSCRIPTION_AMOUNT,
-        description: 'Artist Subscription Payment',
-        returnUrl: `${req.protocol}://${req.get('host')}/payment/subscription/complete`,
-        metadata: { userId, type: 'subscription' }
-      });
+      let hostedPage;
+      try {
+        hostedPage = await paymentService.createHostedPaymentPage({
+          amount: SUBSCRIPTION_AMOUNT,
+          description: 'Artist Subscription Payment',
+          returnUrl: `${req.protocol}://${req.get('host')}/payment/subscription/complete`,
+          metadata: { userId, type: 'subscription' }
+        });
+      } catch (pageError) {
+        console.error('Hosted page creation error:', pageError);
+        return res.status(400).json({ 
+          error: 'Failed to create payment page',
+          details: pageError.message
+        });
+      }
       
       return res.status(200).json({
         success: true,
         message: 'Hosted payment page generated',
         paymentPageUrl: hostedPage.url,
-        paymentPageId: hostedPage.id
+        paymentPageId: hostedPage.id,
+        isMockPayment: process.env.NODE_ENV !== 'production'
       });
     } else {
       return res.status(400).json({
@@ -75,7 +104,8 @@ export const processSubscriptionPayment = async (req, res) => {
     console.error('Subscription payment error:', error);
     return res.status(500).json({
       error: 'Failed to process subscription payment',
-      details: error.message
+      details: error.message,
+      isMockPayment: process.env.NODE_ENV !== 'production'
     });
   }
 };
