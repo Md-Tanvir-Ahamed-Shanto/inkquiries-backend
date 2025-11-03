@@ -384,6 +384,15 @@ class PaymentService {
     
     return this.makeRequest('transactions', payload);
   }
+
+  /**
+   * Create a transaction using a contract (alias for processTransaction)
+   * @param {Object} transactionData - Transaction information
+   * @returns {Promise<Object>} - Transaction response
+   */
+  async createTransaction(transactionData) {
+    return this.processTransaction(transactionData);
+  }
   
   /**
    * Create a hosted payment page
