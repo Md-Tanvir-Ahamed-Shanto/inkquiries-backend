@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router } from "express";
 import {
   createArtist,
   loginArtist,
@@ -19,66 +19,53 @@ import {
   searchArtists,
   getTopRankedArtists,
   createArtistByClient,
-} from '../controllers/artistController.js';
-import { uploadGalleryImage, uploadPortfolioImage, uploadProfileImage } from '../config/multerConfig.js';
+} from "../controllers/artistController.js";
+import {
+  uploadGalleryImage,
+  uploadPortfolioImage,
+  uploadProfileImage,
+} from "../config/multerConfig.js";
+import {getAllSubscriptionPlans } from "../controllers/adminController.js";
 
 const router = Router();
+router.get("/promotion", getAllSubscriptionPlans);
 
-router.post('/logout', logoutArtist);
+router.post("/logout", logoutArtist);
 
-router.route('/')
-  .post(createArtist)
-  .get(getAllArtists);
+router.route("/").post(createArtist).get(getAllArtists);
 
 // Route for clients to create artist profiles
-router.post('/create-by-client', createArtistByClient);
+router.post("/create-by-client", createArtistByClient);
 
-router.route('/:id')
-  .get(getArtistById)
-  .put(updateArtist)
-  .delete(deleteArtist);
+router.route("/:id").get(getArtistById).put(updateArtist).delete(deleteArtist);
 
 // Account management routes
-router.post('/:id/change-email', changeEmail);
-router.post('/:id/change-password', changePassword);
-router.post('/:id/disable', disableArtist);
+router.post("/:id/change-email", changeEmail);
+router.post("/:id/change-password", changePassword);
+router.post("/:id/disable", disableArtist);
 
 // Profile photo routes
 router.post(
-  '/:id/profilePhoto',
-  uploadProfileImage.single('profilePhoto'),
+  "/:id/profilePhoto",
+  uploadProfileImage.single("profilePhoto"),
   uploadProfilePhoto
 );
 
-router.delete(
-  '/:id/profilePhoto',
-  deleteProfilePhoto
+router.delete("/:id/profilePhoto", deleteProfilePhoto);
+
+router.get("/:id/profilePhoto", getProfilePhoto);
+
+router.post(
+  "/gallery/:id/upload",
+  uploadGalleryImage.array("gallaryImages", 10),
+  uploadGalleryImages
 );
 
-router.get(
-  '/:id/profilePhoto',
-  getProfilePhoto
-);
+router.get("/gallery/:id", getArtistGallery);
 
-  router.post(
-    '/gallery/:id/upload',
-    uploadGalleryImage.array('gallaryImages', 10),
-    uploadGalleryImages
-);
-
-router.get(
-    '/gallery/:id',
-    getArtistGallery
-);
-
-router.delete(
-    '/gallery/:imageId',
-    deleteGalleryImage
-);
-
+router.delete("/gallery/:imageId", deleteGalleryImage);
 // Search artists
-router.get('/find/artist',  searchArtists);
-router.get('/find/top-ranked', getTopRankedArtists)
-
+router.get("/find/artist", searchArtists);
+router.get("/find/top-ranked", getTopRankedArtists);
 
 export default router;

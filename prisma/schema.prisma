@@ -7,6 +7,73 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Payment-related models for Bank of America integration
+model Payment {
+  id            String  @id @default(cuid())
+  amount        Float
+  currency      String  @default("USD")
+  status        String // "pending", "completed", "failed", "refunded"
+  paymentMethod String // "card", "ach", "contractId"
+  transactionId String? // Bank of America transaction ID
+  description   String?
+  metadata      Json? // Additional payment data
+
+  // Relations
+  artistId String?
+  artist   Artist? @relation(fields: [artistId], references: [id])
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payments")
+}
+
+model PaymentMethod {
+  id              String  @id @default(cuid())
+  type            String // "card", "ach"
+  contractId      String // Bank of America contract ID
+  lastFour        String? // Last four digits of card or account
+  expirationMonth String? // Card expiration month
+  expirationYear  String? // Card expiration year
+  isDefault       Boolean @default(false)
+  metadata        Json? // Additional payment method data
+
+  // Relations
+  artistId String?
+  artist   Artist? @relation(fields: [artistId], references: [id])
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payment_methods")
+}
+
+model PaymentTransaction {
+  id              String  @id @default(cuid())
+  transactionId   String // Bank of America transaction ID
+  amount          Float
+  currency        String  @default("USD")
+  status          String // "pending", "completed", "failed", "refunded"
+  paymentMethodId String?
+  description     String?
+  metadata        Json?
+
+  // Relations
+  artistId String?
+  artist   Artist? @relation(fields: [artistId], references: [id])
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payment_transactions")
+}
+
 //
 // ADMIN TABLE
 //
@@ -19,7 +86,7 @@ model Admin {
   isSuper            Boolean   @default(false)
   role               String    @default("admin")
   isActive           Boolean   @default(true)
-  resetPasswordToken String?   // token for password reset
+  resetPasswordToken String? // token for password reset
   resetTokenExpiry   DateTime? // expiry time for reset token
 
   logs AdminLog[]
@@ -42,20 +109,23 @@ model Client {
   name               String?
   profilePhoto       String?
   location           String?
-  socialLinks        Json?     // for custom links
-  socialLogin        Json?     // optional social login data (Google/Facebook etc.)
-  resetPasswordToken String?   // token for password reset
+  socialLinks        Json? // for custom links
+  socialLogin        Json? // optional social login data (Google/Facebook etc.)
+  resetPasswordToken String? // token for password reset
   resetTokenExpiry   DateTime? // expiry time for reset token
 
-  reviews           Review[]
-  portfolioComments PortfolioComment[]
-  reviewComments    ReviewComment[]
-  reviewLikes       ReviewLike[]
-  portfolioLikes    PortfolioLike[]
-  lastLogin         DateTime?
-  isActive          Boolean            @default(true)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  reviews             Review[]
+  portfolioComments   PortfolioComment[]
+  reviewComments      ReviewComment[]
+  reviewLikes         ReviewLike[]
+  portfolioLikes      PortfolioLike[]
+  payments            Payment[]
+  paymentMethods      PaymentMethod[]
+  paymentTransactions PaymentTransaction[]
+  lastLogin           DateTime?
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   @@map("clients")
 }
@@ -72,8 +142,8 @@ model Artist {
   role               String    @default("artist")
   profilePhoto       String?
   location           String?
-  socialLinks        Json?     // custom external links
-  socialLogin        Json?     // optional social login
+  socialLinks        Json? // custom external links
+  socialLogin        Json? // optional social login
   socialVerified     Boolean   @default(false) // verified through socials
   lastLogin          DateTime?
   isActive           Boolean   @default(true)
@@ -82,18 +152,21 @@ model Artist {
   isVerified         Boolean   @default(false)
   createdByClient    Boolean   @default(false)
   isClaimed          Boolean   @default(false)
-  about              String?   // About artist (bio)
-  personalVibe       Json?     // Personal vibe (e.g., "funny", "serious")
-  resetPasswordToken String?   // token for password reset
+  about              String? // About artist (bio)
+  personalVibe       Json? // Personal vibe (e.g., "funny", "serious")
+  resetPasswordToken String? // token for password reset
   resetTokenExpiry   DateTime? // expiry time for reset token
 
-  reviews         Review[]
-  portfolioImages PortfolioImage[]
-  gallaryImages   GallaryImage[]
-  promotions      Promotion[]
-  reportedReviews ReviewReport[]
-  reviewLikes     ReviewLike[]
-  reviewComments  ReviewComment[]
+  reviews             Review[]
+  portfolioImages     PortfolioImage[]
+  gallaryImages       GallaryImage[]
+  promotions          Promotion[]
+  reportedReviews     ReviewReport[]
+  reviewLikes         ReviewLike[]
+  reviewComments      ReviewComment[]
+  payments            Payment[]
+  paymentMethods      PaymentMethod[]
+  paymentTransactions PaymentTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -168,7 +241,7 @@ model ReviewComment {
 // REVIEW LIKE
 //
 model ReviewLike {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   clientId String?
   client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
   artistId String?
