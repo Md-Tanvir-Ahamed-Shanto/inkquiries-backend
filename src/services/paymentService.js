@@ -13,8 +13,9 @@ class PaymentService {
     this.accessKey = process.env.BOA_ACCESS_KEY;
     this.secretKey = process.env.BOA_SECRET_KEY;
     this.profileId = process.env.BOA_PROFILE_ID;
-    this.baseUrl = 'https://api.bankofamerica.com/payment/v1';
-    this.apiVersion = '2023-01';
+    // Updated to use the correct Bank of America payment gateway URL
+    this.baseUrl = 'https://apitest.cybersource.com/pts/v2';
+    this.apiVersion = '';
   }
 
   /**
@@ -28,7 +29,7 @@ class PaymentService {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonce = this.generateNonce();
     
-    // Create string to sign
+    // Create string to sign (CyberSource format)
     const stringToSign = `${method}\n${requestPath}\n${timestamp}\n${nonce}\n${JSON.stringify(payload)}`;
     
     // Create HMAC signature
@@ -59,7 +60,7 @@ class PaymentService {
   }
 
   /**
-   * Make authenticated API request to Bank of America
+   * Make authenticated API request to Bank of America/CyberSource
    * @param {string} endpoint - API endpoint
    * @param {Object} payload - Request payload
    * @param {string} method - HTTP method
@@ -73,19 +74,35 @@ class PaymentService {
       return this.getMockResponse(endpoint, payload);
     }
     
-    const requestPath = `/${this.apiVersion}/${endpoint}`;
+    const requestPath = `/${endpoint}`;
     const url = `${this.baseUrl}${requestPath}`;
     
-    const { signature, timestamp, nonce } = this.generateSignature(requestPath, payload, method);
+    const gmtDate = new Date().toGMTString();
+    const requestHost = new URL(this.baseUrl).hostname;
     
+    // CyberSource authentication headers
     const headers = {
       'Content-Type': 'application/json',
-      'X-BOA-Merchant-ID': this.merchantId,
-      'X-BOA-Access-Key': this.accessKey,
-      'X-BOA-Signature': signature,
-      'X-BOA-Timestamp': timestamp,
-      'X-BOA-Nonce': nonce
+      'v-c-merchant-id': this.merchantId,
+      'v-c-access-key': this.accessKey,
+      'v-c-timestamp': gmtDate,
+      'Host': requestHost
     };
+    
+    // Generate digest for the request body
+    if (method !== 'GET' && payload) {
+      const payloadString = JSON.stringify(payload);
+      const digest = crypto
+        .createHash('sha256')
+        .update(payloadString)
+        .digest('base64');
+      
+      headers['Digest'] = `SHA-256=${digest}`;
+    }
+    
+    // Generate signature
+    const signatureValue = this.generateCyberSourceSignature(requestPath, headers, method, payload);
+    headers['Signature'] = signatureValue;
     
     try {
       const response = await axios({
@@ -108,6 +125,39 @@ class PaymentService {
       
       throw new Error(error.response?.data?.message || 'Payment service error');
     }
+  }
+  
+  /**
+   * Generate CyberSource signature for API authentication
+   * @param {string} requestPath - API endpoint path
+   * @param {Object} headers - Request headers
+   * @param {string} method - HTTP method
+   * @param {Object} payload - Request payload
+   * @returns {string} - Generated signature
+   */
+  generateCyberSourceSignature(requestPath, headers, method, payload) {
+    // List of headers to sign
+    const signedHeaders = ['v-c-merchant-id', 'v-c-access-key', 'v-c-timestamp', 'Host'];
+    if (headers['Digest']) {
+      signedHeaders.push('Digest');
+    }
+    
+    // Create signature string
+    const signatureString = signedHeaders
+      .map(header => `${header.toLowerCase()}: ${headers[header]}`)
+      .join('\n');
+    
+    // Create string to sign
+    const stringToSign = `${method}\n${requestPath}\n${signatureString}`;
+    
+    // Create HMAC signature
+    const signature = crypto
+      .createHmac('sha256', this.secretKey)
+      .update(stringToSign)
+      .digest('base64');
+    
+    // Format the signature header value
+    return `keyid="${this.accessKey}", algorithm="HmacSHA256", headers="${signedHeaders.join(' ').toLowerCase()}", signature="${signature}"`;
   }
   
   /**
@@ -276,12 +326,13 @@ class PaymentService {
    */
   async createCardContract(cardData, customerData = {}) {
     const payload = {
-      profileId: this.profileId,
-      card: {
-        number: cardData.cardNumber || cardData.number,
-        expirationMonth: cardData.expirationMonth,
-        expirationYear: cardData.expirationYear,
-        securityCode: cardData.cvv || cardData.securityCode
+      paymentInformation: {
+        card: {
+          number: cardData.cardNumber || cardData.number,
+          expirationMonth: cardData.expirationMonth,
+          expirationYear: cardData.expirationYear,
+          securityCode: cardData.cvv || cardData.securityCode
+        }
       },
       tokenize: true, // Request a reusable token for future payments
       saveCard: cardData.saveCard || false
@@ -289,16 +340,19 @@ class PaymentService {
     
     // Only add customer data if provided
     if (customerData && Object.keys(customerData).length > 0) {
-      payload.customer = {
-        firstName: customerData.firstName || '',
-        lastName: customerData.lastName || '',
-        email: customerData.email || '',
-        phone: customerData.phone || ''
+      payload.orderInformation = {
+        billTo: {
+          firstName: customerData.firstName || '',
+          lastName: customerData.lastName || '',
+          email: customerData.email || '',
+          phoneNumber: customerData.phone || ''
+        }
       };
       
       if (customerData.address) {
-        payload.billingAddress = {
-          line1: customerData.address.line1 || '',
+        payload.orderInformation.billTo = {
+          ...payload.orderInformation.billTo,
+          address1: customerData.address.line1 || '',
           city: customerData.address.city || '',
           state: customerData.address.state || '',
           postalCode: customerData.address.postalCode || '',
@@ -307,7 +361,7 @@ class PaymentService {
       }
     }
     
-    return this.makeRequest('contracts/card', payload);
+    return this.makeRequest('payments/tokens', payload);
   }
 
   /**
@@ -318,28 +372,32 @@ class PaymentService {
    */
   async createAchContract(achData, customerData = {}) {
     const payload = {
-      profileId: this.profileId,
-      ach: {
-        accountNumber: achData.accountNumber,
-        routingNumber: achData.routingNumber,
-        accountType: achData.accountType,
-        accountHolderName: achData.accountHolderName
+      paymentInformation: {
+        bank: {
+          account: achData.accountNumber,
+          routingNumber: achData.routingNumber,
+          type: achData.accountType,
+          name: achData.accountHolderName
+        }
       },
       tokenize: true // Request a reusable token for future payments
     };
     
     // Only add customer data if provided
     if (customerData && Object.keys(customerData).length > 0) {
-      payload.customer = {
-        firstName: customerData.firstName || '',
-        lastName: customerData.lastName || '',
-        email: customerData.email || '',
-        phone: customerData.phone || ''
+      payload.orderInformation = {
+        billTo: {
+          firstName: customerData.firstName || '',
+          lastName: customerData.lastName || '',
+          email: customerData.email || '',
+          phoneNumber: customerData.phone || ''
+        }
       };
       
       if (customerData.address) {
-        payload.billingAddress = {
-          line1: customerData.address.line1 || '',
+        payload.orderInformation.billTo = {
+          ...payload.orderInformation.billTo,
+          address1: customerData.address.line1 || '',
           city: customerData.address.city || '',
           state: customerData.address.state || '',
           postalCode: customerData.address.postalCode || '',
@@ -348,7 +406,7 @@ class PaymentService {
       }
     }
     
-    return this.makeRequest('contracts/ach', payload);
+    return this.makeRequest('payments/tokens', payload);
   }
 
   /**
@@ -376,13 +434,26 @@ class PaymentService {
    */
   async processTransaction(transactionData) {
     const payload = {
-      contractId: transactionData.contractId,
-      amount: transactionData.amount,
-      currency: transactionData.currency || 'USD',
-      description: transactionData.description || 'Transaction'
+      paymentInformation: {
+        tokenizedCard: {
+          transientToken: transactionData.contractId
+        }
+      },
+      orderInformation: {
+        amountDetails: {
+          totalAmount: transactionData.amount.toString(),
+          currency: transactionData.currency || 'USD'
+        }
+      },
+      processingInformation: {
+        commerceIndicator: 'internet'
+      },
+      clientReferenceInformation: {
+        code: transactionData.description || 'Transaction'
+      }
     };
     
-    return this.makeRequest('transactions', payload);
+    return this.makeRequest('payments', payload);
   }
 
   /**
