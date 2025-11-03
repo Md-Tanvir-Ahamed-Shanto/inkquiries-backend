@@ -32,12 +32,12 @@
 # Facebook OAuth (Active)
 FACEBOOK_APP_ID=1852233792373510
 FACEBOOK_APP_SECRET=c3e8a9cf3c057a78abe209f53ad39cb8
-FACEBOOK_CALLBACK_URL=http://localhost:5000/auth/facebook/callback
+FACEBOOK_CALLBACK_URL=https://api.inkquiries.org/auth/facebook/callback
 
 # Instagram OAuth (DEPRECATED - December 4, 2024)
 # INSTAGRAM_APP_ID=566522906512402
 # INSTAGRAM_APP_SECRET=0f332a92c1a9b3077a4174a2ed7efb00
-# INSTAGRAM_CALLBACK_URL=http://localhost:5000/auth/instagram/callback
+# INSTAGRAM_CALLBACK_URL=https://api.inkquiries.org/auth/instagram/callback
 ```
 
 ## Next Steps Required
@@ -50,7 +50,7 @@ FACEBOOK_CALLBACK_URL=http://localhost:5000/auth/facebook/callback
    - Complete app review if required
 
 2. **Verify App Settings**:
-   - Ensure callback URL matches: `http://localhost:5000/auth/facebook/callback`
+   - Ensure callback URL matches: `https://api.inkquiries.org/auth/facebook/callback`
    - For production, update to your domain
    - Verify email permission is approved
 
