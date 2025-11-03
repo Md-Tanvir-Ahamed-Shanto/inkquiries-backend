@@ -403,7 +403,7 @@ class PaymentService {
         metadata: paymentData.metadata || {}
       };
       
-      return this.makeRequest('hosted-pages', payload);
+      return this.makeRequest('hosted-payment-pages', payload);
     } catch (error) {
       console.error('Failed to create hosted payment page:', error);
       // Fallback to mock in case of API errors (including 403 Forbidden)
