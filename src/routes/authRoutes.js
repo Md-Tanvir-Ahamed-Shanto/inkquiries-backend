@@ -3,11 +3,14 @@ import {
   login, 
   initiateFacebookAuth, 
   handleFacebookCallback, 
+  initiateInstagramAuth,
+  handleInstagramCallback,
   getInstagramMedia,
   forgotPassword, 
   resetPassword, 
   verifyResetToken 
 } from '../controllers/authController.js';
+import { protectUser } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -24,19 +27,12 @@ router.get('/verify-reset-token/:token/:userType', verifyResetToken);
 router.get('/facebook', initiateFacebookAuth);
 router.get('/facebook/callback', handleFacebookCallback);
 
-// Instagram integration through Facebook (modern approach)
-// Use: /auth/facebook?includeInstagram=true&role=client
-router.get('/instagram', (req, res) => {
-  // Redirect to Facebook OAuth with Instagram scope
-  const role = req.query.role || 'client';
-  res.redirect(`/auth/facebook?includeInstagram=true&role=${role}`);
-});
-
-// Instagram callback (same as Facebook since Instagram goes through Facebook)
-router.get('/instagram/callback', handleFacebookCallback);
+// Instagram OAuth (direct Instagram Business Login)
+router.get('/instagram', initiateInstagramAuth);
+router.get('/instagram/callback', handleInstagramCallback);
 
 // Get Instagram media for authenticated users
-router.get('/instagram/media', getInstagramMedia);
+router.get('/instagram/media', protectUser, getInstagramMedia);
 
 // Legacy Passport.js routes removed - using modern OAuth service only
 

@@ -125,24 +125,113 @@ export const handleFacebookCallback = async (req, res) => {
  */
 export const getInstagramMedia = async (req, res) => {
   try {
-    const { user } = req; // Assuming user is attached by auth middleware
+    // Extract user info from protectUser middleware
+    let userId, userRole;
     
-    if (!user) {
+    if (req.client) {
+      userId = req.client;
+      userRole = 'client';
+    } else if (req.artist) {
+      userId = req.artist;
+      userRole = 'artist';
+    } else {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
-    const instagramMedia = await oauthService.getInstagramMedia(user.id, user.role);
+    const result = await oauthService.getInstagramMedia(userId, userRole);
+    
+    // Handle the new response format
+    if (result.error) {
+      return res.status(400).json({
+        success: false,
+        error: result.error,
+        details: result.details
+      });
+    }
     
     res.status(200).json({
       success: true,
-      data: instagramMedia,
-      message: instagramMedia.length > 0 
-        ? `Found ${instagramMedia.length} Instagram posts`
-        : 'No Instagram media found or Instagram not connected'
+      data: result.data,
+      account: result.account,
+      message: result.data && result.data.length > 0 
+        ? `Found ${result.data.length} Instagram posts`
+        : 'No Instagram media found'
     });
   } catch (error) {
     console.error('Error fetching Instagram media:', error);
     res.status(500).json({ error: 'Failed to fetch Instagram media' });
+  }
+};
+
+/**
+ * Initiate Instagram OAuth authentication
+ * @param {object} req - The request object
+ * @param {object} res - The response object
+ */
+export const initiateInstagramAuth = async (req, res) => {
+  try {
+    const { role = 'client' } = req.query;
+    
+    // Get Instagram OAuth URL
+    const authUrl = oauthService.getInstagramAuthUrl(role);
+    
+    // Redirect to Instagram OAuth
+    res.redirect(authUrl);
+  } catch (error) {
+    console.error('Error initiating Instagram auth:', error);
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=Instagram authentication failed`);
+  }
+};
+
+/**
+ * Handle Instagram OAuth callback
+ * @param {object} req - The request object
+ * @param {object} res - The response object
+ */
+export const handleInstagramCallback = async (req, res) => {
+  try {
+    const { code, state, error } = req.query;
+    
+    if (error) {
+      console.error('Instagram OAuth error:', error);
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=Instagram authentication failed`);
+    }
+    
+    if (!code) {
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=No authorization code received`);
+    }
+    
+    // Parse role from state parameter
+    const role = state || 'client';
+    
+    // Handle Instagram callback
+    const result = await oauthService.handleInstagramCallback(code, role);
+    
+    if (result.error) {
+      console.error('Instagram callback error:', result.error);
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=${encodeURIComponent(result.error)}`);
+    }
+    
+    // Set cookies for authentication
+    res.cookie('token', result.token, {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
+    
+    res.cookie('user', JSON.stringify(result.user), {
+      secure: process.env.FRONTEND_URL?.includes('https'),
+      sameSite: 'strict',
+    });
+    
+    // Redirect to appropriate dashboard
+    const redirectUrl = role === 'artist' 
+      ? `${process.env.FRONTEND_URL || 'http://localhost:3000'}/artist/dashboard`
+      : `${process.env.FRONTEND_URL || 'http://localhost:3000'}/client/dashboard`;
+    
+    res.redirect(redirectUrl);
+  } catch (error) {
+    console.error('Error in Instagram callback:', error);
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=Instagram authentication failed`);
   }
 };
 
